@@ -5,7 +5,7 @@ import io
 st.set_page_config(page_title="ניהול טבלת צדק - מכרז 44/2025", layout="wide")
 
 st.title("⚖️ מערכת ניהול 'טבלת צדק' - מכרז שב\"ס 44/2025")
-st.subheader("חלוקה הוגנת, אישור משימות וניהול סטטוסים מורחב")
+st.subheader("חלוקה הוגנת, אישור משימות וניהול סטטוסים לפי פרויקט וקבלן")
 
 # נתוני הקבלנים והאחוזים המקוריים לפי נתחי המכרז
 CONTRACTORS_DATA = [
@@ -32,8 +32,8 @@ CONTRACTORS_DATA = [
     {"קבוצה": "קבוצה 3", "אזור": "ארצי/צפון", "דירוג": "זוכה 2", "קבלן": "נרשא", "אחוז_יעד": 40.0},
 ]
 
-STATUS_OPTIONS = ["בתהליכי הקמת הזמנה", "יש הזמנה מאושרת", "עלתה הזמנה", "תחילת עבודה", "סיום עבודה", "מבוטל"]
-ACTIVE_STATUSES = ["בתהליכי הקמת הזמנה", "יש הזמנה מאושרת", "עלתה הזמנה", "תחילת עבודה", "סיום עבודה"]
+STATUS_OPTIONS = ["טרם החל", "בתהליכי הקמת הזמנה", "יש הזמנה מאושרת", "עלתה הזמנה", "תחילת עבודה", "סיום עבודה", "מבוטל"]
+ACTIVE_STATUSES = ["טרם החל", "בתהליכי הקמת הזמנה", "יש הזמנה מאושרת", "עלתה הזמנה", "תחילת עבודה", "סיום עבודה"]
 
 # פרויקטים מאושרים לפי גיליון מקרא מעודכן
 INITIAL_ORDERS = [
@@ -104,7 +104,7 @@ if st.sidebar.button("1. חשב והצג ספק מומלץ (הבא בתור)"):
 if "pending_project" in st.session_state and st.session_state.pending_project:
     p = st.session_state.pending_project
     st.sidebar.info(f"📍 **תוצאת חישוב:**\nהספק המומלץ לפי כללי המכרז: **{p['קבלן']}**")
-    initial_status = st.sidebar.selectbox("בחר סטטוס התחלתי להוספה", ["בתהליכי הקמת הזמנה", "יש הזמנה מאושרת", "עלתה הזמנה", "תחילת עבודה"])
+    initial_status = st.sidebar.selectbox("בחר סטטוס התחלתי להוספה", STATUS_OPTIONS)
     if st.sidebar.button("2. אישור והוספה רשמית לטבלה"):
         new_id = len(st.session_state.orders) + 1
         st.session_state.orders.append({
@@ -148,27 +148,52 @@ for c in CONTRACTORS_DATA:
 
 st.dataframe(pd.DataFrame(dashboard_rows), use_container_width=True)
 
-# יומן הזמנות וניהול סטטוסים
-st.header("יומן הזמנות עבודה וניהול סטטוסים")
-if st.session_state.orders:
-    df_orders = pd.DataFrame(st.session_state.orders)
-    st.dataframe(df_orders, use_container_width=True)
+# אזור ניהול לפי קבלן ופרויקטים
+st.header("🔍 תצוגת פרויקטים ועדכון סטטוס לפי קבלן")
+all_contractors = list(set([c["קבלן"] for c in CONTRACTORS_DATA]))
+selected_contractor = st.selectbox("בחר קבלן לצפייה בפרויקטים שלו ועדכון סטטוס", sorted(all_contractors))
+
+contractor_projects = [o for o in st.session_state.orders if o["קבלן"] == selected_contractor]
+
+if contractor_projects:
+    st.subheader(f"פרויקטים המשויכים לקבלן: **{selected_contractor}**")
+    df_c_proj = pd.DataFrame(contractor_projects)
+    st.dataframe(df_c_proj, use_container_width=True)
     
-    st.subheader("עדכון סטטוס משימה קיימת")
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        selected_id = st.selectbox("בחר מזהה משימה", [o["מזהה"] for o in st.session_state.orders])
-    with col2:
-        new_status = st.selectbox("בחר סטטוס חדש", STATUS_OPTIONS)
-    with col3:
+    st.markdown("#### עדכון סטטוס לפרויקט של הקבלן הנבחר")
+    col_p1, col_p2, col_p3 = st.columns(3)
+    with col_p1:
+        p_to_edit = st.selectbox("בחר מזהה פרויקט לעדכון", [p["מזהה"] for p in contractor_projects])
+    with col_p2:
+        curr_p_status = next((p["סטטוס"] for p in contractor_projects if p["מזהה"] == p_to_edit), "טרם החל")
+        new_p_status = st.selectbox("בחר סטטוס חדש לפרויקט", STATUS_OPTIONS, index=STATUS_OPTIONS.index(curr_p_status) if curr_p_status in STATUS_OPTIONS else 0)
+    with col_p3:
         st.write("")
         st.write("")
-        if st.button("עדכן סטטוס משימה"):
+        if st.button("עדכן סטטוס פרויקט זה"):
             for o in st.session_state.orders:
-                if o["מזהה"] == selected_id:
-                    o["סטטוס"] = new_status
-            st.success(f"משימה מזהה {selected_id} עודכנה לסטטוס: {new_status}")
+                if o["מזהה"] == p_to_edit:
+                    o["סטטוס"] = new_p_status
+            st.success(f"פרויקט מזהה {p_to_edit} של {selected_contractor} עודכן בהצלחה לסטטוס: {new_p_status}")
             st.rerun()
+else:
+    st.info(f"טרם שויכו פרויקטים לקבלן {selected_contractor}.")
+
+# ריכוז טבלה לפי סטטוסים
+st.header("📊 ריכוז וסיכום פרויקטים לפי סטטוסים")
+if st.session_state.orders:
+    status_summary = []
+    df_all_orders = pd.DataFrame(st.session_state.orders)
+    for st_name in STATUS_OPTIONS:
+        st_orders = df_all_orders[df_all_orders["סטטוס"] == st_name]
+        st_count = len(st_orders)
+        st_sum = st_orders["סכום"].sum() if st_count > 0 else 0
+        status_summary.append({
+            "סטטוס פרויקט": st_name,
+            "כמות פרויקטים": st_count,
+            "סך תקציב מצטבר (ש\"ח)": f"{st_sum:,.0f} ₪"
+        })
+    st.dataframe(pd.DataFrame(status_summary), use_container_width=True)
 
 # ייצוא קובץ Excel פיזי מעודכן
 buffer = io.BytesIO()
