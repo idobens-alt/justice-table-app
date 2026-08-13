@@ -5,7 +5,7 @@ import io
 st.set_page_config(page_title="ניהול טבלת צדק - מכרז 44/2025", layout="wide")
 
 st.title("⚖️ מערכת ניהול 'טבלת צדק' - מכרז שב\"ס 44/2025")
-st.subheader("חלוקה הוגנת, אישור משימות ואיזון ניצול תקציבי (נתוני גיליון מקרא 12.8)")
+st.subheader("חלוקה הוגנת, אישור משימות וניהול סטטוסים מורחב")
 
 # נתוני הקבלנים והאחוזים המקוריים לפי נתחי המכרז
 CONTRACTORS_DATA = [
@@ -32,7 +32,10 @@ CONTRACTORS_DATA = [
     {"קבוצה": "קבוצה 3", "אזור": "ארצי/צפון", "דירוג": "זוכה 2", "קבלן": "נרשא", "אחוז_יעד": 40.0},
 ]
 
-# פרויקטים מאושרים ומחולקים לפי גיליון מקרא מעודכן
+STATUS_OPTIONS = ["בתהליכי הקמת הזמנה", "יש הזמנה מאושרת", "עלתה הזמנה", "תחילת עבודה", "סיום עבודה", "מבוטל"]
+ACTIVE_STATUSES = ["בתהליכי הקמת הזמנה", "יש הזמנה מאושרת", "עלתה הזמנה", "תחילת עבודה", "סיום עבודה"]
+
+# פרויקטים מאושרים לפי גיליון מקרא מעודכן
 INITIAL_ORDERS = [
     # קבוצה 1 צפון
     {"מזהה": 1, "שם פרויקט": "הקצאת בסיס צפון - מ.מיכאלי", "קבוצה": "קבוצה 1", "אזור": "צפון", "סכום": 9558000, "קבלן": "מ.מיכאלי", "סטטוס": "עלתה הזמנה"},
@@ -67,7 +70,7 @@ amount = st.sidebar.number_input("סכום מוערך בש\"ח (לא כולל מ
 
 def calculate_allocation(group_val, region_val, new_amount):
     relevant_contractors = [c for c in CONTRACTORS_DATA if c["קבוצה"] == group_val and c["אזור"] == region_val]
-    active_orders = [o for o in st.session_state.orders if o["סטטוס"] in ["מאושר", "עלתה הזמנה"] and o["קבוצה"] == group_val and o["אזור"] == region_val]
+    active_orders = [o for o in st.session_state.orders if o["סטטוס"] in ACTIVE_STATUSES and o["קבוצה"] == group_val and o["אזור"] == region_val]
     total_existing = sum(o["סכום"] for o in active_orders)
     total_gross = total_existing + new_amount
     
@@ -101,6 +104,7 @@ if st.sidebar.button("1. חשב והצג ספק מומלץ (הבא בתור)"):
 if "pending_project" in st.session_state and st.session_state.pending_project:
     p = st.session_state.pending_project
     st.sidebar.info(f"📍 **תוצאת חישוב:**\nהספק המומלץ לפי כללי המכרז: **{p['קבלן']}**")
+    initial_status = st.sidebar.selectbox("בחר סטטוס התחלתי להוספה", ["בתהליכי הקמת הזמנה", "יש הזמנה מאושרת", "עלתה הזמנה", "תחילת עבודה"])
     if st.sidebar.button("2. אישור והוספה רשמית לטבלה"):
         new_id = len(st.session_state.orders) + 1
         st.session_state.orders.append({
@@ -110,9 +114,9 @@ if "pending_project" in st.session_state and st.session_state.pending_project:
             "אזור": p["אזור"],
             "סכום": p["סכום"],
             "קבלן": p["קבלן"],
-            "סטטוס": "מאושר"
+            "סטטוס": initial_status
         })
-        st.sidebar.success(f"פרויקט מזהה {new_id} אושר והתווסף בהצלחה לטבלה!")
+        st.sidebar.success(f"פרויקט מזהה {new_id} אושר והתווסף בהצלחה לטבלה בסטטוס: {initial_status}!")
         st.session_state.pending_project = None
         st.rerun()
 
@@ -120,7 +124,7 @@ if "pending_project" in st.session_state and st.session_state.pending_project:
 st.header("תמונת מצב מעודכנת - טבלת צדק (גיליון מקרא)")
 dashboard_rows = []
 for c in CONTRACTORS_DATA:
-    active_orders = [o for o in st.session_state.orders if o["סטטוס"] in ["מאושר", "עלתה הזמנה"] and o["קבוצה"] == c["קבוצה"] and o["אזור"] == c["אזור"]]
+    active_orders = [o for o in st.session_state.orders if o["סטטוס"] in ACTIVE_STATUSES and o["קבוצה"] == c["קבוצה"] and o["אזור"] == c["אזור"]]
     group_total = sum(o["סכום"] for o in active_orders)
     contractor_total = sum(o["סכום"] for o in active_orders if o["קבלן"] == c["קבלן"])
     
@@ -144,18 +148,18 @@ for c in CONTRACTORS_DATA:
 
 st.dataframe(pd.DataFrame(dashboard_rows), use_container_width=True)
 
-# יומן הזמנות ועדכון סטטוס משימות
+# יומן הזמנות וניהול סטטוסים
 st.header("יומן הזמנות עבודה וניהול סטטוסים")
 if st.session_state.orders:
     df_orders = pd.DataFrame(st.session_state.orders)
     st.dataframe(df_orders, use_container_width=True)
     
-    st.subheader("עדכון סטטוס משימה קיימת (למשל: 'עלתה הזמנה' / 'מבוטל')")
+    st.subheader("עדכון סטטוס משימה קיימת")
     col1, col2, col3 = st.columns(3)
     with col1:
         selected_id = st.selectbox("בחר מזהה משימה", [o["מזהה"] for o in st.session_state.orders])
     with col2:
-        new_status = st.selectbox("בחר סטטוס חדש", ["מאושר", "עלתה הזמנה", "בתהליך אישור", "מבוטל"])
+        new_status = st.selectbox("בחר סטטוס חדש", STATUS_OPTIONS)
     with col3:
         st.write("")
         st.write("")
@@ -163,7 +167,7 @@ if st.session_state.orders:
             for o in st.session_state.orders:
                 if o["מזהה"] == selected_id:
                     o["סטטוס"] = new_status
-            st.success(f"משימה {selected_id} עודכנה לסטטוס: {new_status}")
+            st.success(f"משימה מזהה {selected_id} עודכנה לסטטוס: {new_status}")
             st.rerun()
 
 # ייצוא קובץ Excel פיזי מעודכן
