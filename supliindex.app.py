@@ -35,9 +35,9 @@ CONTRACTORS_DATA = [
 STATUS_OPTIONS = ["טרם החל", "בתהליכי הקמת הזמנה", "יש הזמנה מאושרת", "עלתה הזמנה", "תחילת עבודה", "סיום עבודה", "מבוטל"]
 ACTIVE_STATUSES = ["טרם החל", "בתהליכי הקמת הזמנה", "יש הזמנה מאושרת", "עלתה הזמנה", "תחילת עבודה", "סיום עבודה"]
 
-# 38 הפרויקטים מקובץ "תמונת מצב פרויקטים בינוי.xlsx"
+# 38 הפרויקטים מקובץ תמונת מצב פרויקטים בינוי.xlsx
 INITIAL_ORDERS = [
-    # פרויקטים מסומנים (שורות 0-24)
+    # פרויקטים מסומנים בקובץ (שורות 0-24)
     {"מזהה": 1, "שם פרויקט": "מחוז דן - שיפוץ קומת משרדים תחנת הרצליה דרישה 2982", "קבוצה": "קבוצה 1", "אזור": "צפון", "סכום": 1199536.08, "קבלן": "רום בילדינג", "סטטוס": "עלתה הזמנה"},
     {"מזהה": 2, "שם פרויקט": "רמת גן - טיפול בנזקים עם כלביא דרישה 29821", "קבוצה": "קבוצה 1", "אזור": "צפון", "סכום": 871640.04, "קבלן": "מיכאל את דוד", "סטטוס": "עלתה הזמנה"},
     {"מזהה": 3, "שם פרויקט": "דרישה 29591: יחי' סגן הנציב-שיפוץ תחנת ראשון לציון", "קבוצה": "קבוצה 1", "אזור": "צפון", "סכום": 844816.28, "קבלן": "מ.מיכאלי", "סטטוס": "עלתה הזמנה"},
@@ -207,4 +207,26 @@ else:
     st.info(f"טרם שויכו פרויקטים לקבלן {selected_contractor}.")
 
 # ריכוז טבלה לפי סטטוסים
-st.header("📊 רי
+st.header("📊 ריכוז וסיכום פרויקטים לפי סטטוסים")
+if st.session_state.orders:
+    status_summary = []
+    df_all_orders = pd.DataFrame(st.session_state.orders)
+    for st_name in STATUS_OPTIONS:
+        st_orders = df_all_orders[df_all_orders["סטטוס"] == st_name]
+        st_count = len(st_orders)
+        st_sum = st_orders["סכום"].sum() if st_count > 0 else 0
+        status_summary.append({
+            "סטטוס פרויקט": st_name,
+            "כמות פרויקטים": st_count,
+            "סך תקציב מצטבר (ש\"ח)": f"{st_sum:,.0f} ₪"
+        })
+    st.dataframe(pd.DataFrame(status_summary), use_container_width=True)
+
+# ייצוא קובץ Excel פיזי מעודכן עם 2 גיליונות
+buffer = io.BytesIO()
+with pd.ExcelWriter(buffer, engine="xlsxwriter") as writer:
+    pd.DataFrame(dashboard_rows).to_excel(writer, sheet_name="תמונת מצב - טבלת צדק", index=False)
+    if st.session_state.orders:
+        pd.DataFrame(st.session_state.orders).to_excel(writer, sheet_name="פירוט מלא של הפרויקטים", index=False)
+
+st.download_button("📥 הורד קובץ Excel מעודכן (2 גיליונות)", buffer.getvalue(), "justice_table_44_2025.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
